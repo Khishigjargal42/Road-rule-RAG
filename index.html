@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="mn">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Road Rule Assistant</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body class="text-slate-900 min-h-screen flex flex-col"
+      style="background: url('/static/background.jpg') no-repeat center center fixed; background-size: cover;">
+
+  <!-- Overlay (optional: comment out if not needed) -->
+  <div class="absolute inset-0 bg-black/30"></div>
+
+  <!-- Content -->
+  <div class="relative z-10 flex flex-col min-h-screen">
+    <!-- Header -->
+    <header class="border-b border-slate-200 sticky top-0 z-20 bg-white/80 backdrop-blur">
+      <div class="w-full px-4 py-4 flex items-start gap-3 justify-start">
+        <div class="text-2xl font-semibold tracking-wide">
+          road<span class="text-green-600">rule</span> • Замын хөдөлгөөний дүрмийн туслах
+        </div>
+      </div>
+    </header>
+
+    <!-- Main -->
+    <main class="flex-1">
+      <div class="max-w-5xl mx-auto px-4 py-6 grid md:grid-cols-[1fr,22rem] gap-6">
+        
+        <!-- Chat / Answers -->
+        <section class="bg-white/90 rounded-2xl p-4 sm:p-6 shadow border border-slate-200 flex flex-col h-[calc(100vh-200px)]">
+          <div id="messages" class="flex-1 space-y-4 overflow-y-auto pr-1">
+            <div class="bg-slate-100 border border-slate-300 rounded-xl p-4">
+              <p class="text-slate-900">Сайн байна уу! Замын хөдөлгөөний дүрмийн талаар асуугаарай.</p>
+            </div>
+          </div>
+
+          <!-- input form -->
+          <form id="askForm" class="mt-4 flex gap-3">
+            <input id="question" autocomplete="off" placeholder="Асуултаа энд бичнэ үү…" 
+              class="flex-1 bg-white border border-slate-400 text-slate-900 placeholder-slate-500 
+                     rounded-xl px-4 py-3 outline-none focus:border-green-600" />
+            <button id="askBtn" type="submit"
+              class="shrink-0 bg-green-600 hover:bg-green-700 text-white rounded-xl px-5 py-3 font-semibold">
+              Асуух
+            </button>
+          </form>
+        </section>
+
+        <!-- Side Panel -->
+        <aside class="space-y-4">
+          <div class="bg-white/90 rounded-2xl p-5 shadow border border-slate-200">
+            <h3 class="font-semibold mb-2">Жишээ асуултууд</h3>
+            <ul class="list-disc pl-5 text-slate-900 text-sm space-y-1">
+              <li>Сургууль, цэцэрлэгийн ойролцоо жолооч ямар хурдтай явах ёстой вэ?</li>
+              <li>Зүүн гар тийш эргэх дохиог хэзээ өгөх вэ?</li>
+              <li>Зогс шугам ба явган гарц давхцах үед хаана зогсох вэ?</li>
+            </ul>
+          </div>
+          <div class="bg-white/90 rounded-2xl p-5 shadow border border-slate-200">
+            <h3 class="font-semibold mb-2">Тайлбар</h3>
+            <p class="text-sm text-slate-900">
+              Зөвхөн замын хөдөлгөөний дүрэм, дохио, тэмдэг, шугам, торгуулийн зохицуулалттай холбоотой асуултад хариулна.
+            </p>
+          </div>
+        </aside>
+      </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-slate-200 py-4 text-center text-xs text-slate-600 bg-white/60">
+      © 2025 Road Rule Assistant • RAG demo
+    </footer>
+  </div>
+
+<script>
+const form = document.getElementById("askForm");
+const input = document.getElementById("question");
+const btn = document.getElementById("askBtn");
+const messages = document.getElementById("messages");
+
+function bubble(text, role = "assistant") {
+  const wrap = document.createElement("div");
+  wrap.className = role === "user" ? "flex justify-end" : "flex justify-start";
+  const inner = document.createElement("div");
+  inner.className = role === "user"
+    ? "max-w-[90%] bg-green-600 text-white rounded-2xl px-4 py-3"
+    : "max-w-[90%] bg-slate-100 border border-slate-300 text-slate-900 rounded-2xl px-4 py-3";
+  inner.innerHTML = marked.parse(text || "");
+  wrap.appendChild(inner);
+  messages.appendChild(wrap);
+  messages.scrollTop = messages.scrollHeight;
+  return inner;
+}
+
+function typingBubble() {
+  const wrap = document.createElement("div");
+  wrap.className = "flex justify-start";
+  const inner = document.createElement("div");
+  inner.className = "max-w-[90%] bg-slate-100 border border-slate-300 text-slate-900 rounded-2xl px-4 py-3";
+  inner.innerHTML = 'Түр хүлээнэ үү...';
+  wrap.appendChild(inner);
+  messages.appendChild(wrap);
+  messages.scrollTop = messages.scrollHeight;
+  return wrap;
+}
+
+async function ask(q) {
+  bubble(q, "user");
+  const typing = typingBubble();
+  btn.disabled = true; input.disabled = true;
+
+  try {
+    const res = await fetch("/ask", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question: q })
+    });
+    typing.remove();
+
+    const data = await res.json();
+    const ansEl = bubble(data.answer || "(хоосон хариулт)", "assistant");
+
+    // Sources list
+    if (Array.isArray(data.sources) && data.sources.length) {
+      const srcWrap = document.createElement("div");
+      srcWrap.className = "mt-3 pt-2 border-t border-slate-300 text-xs text-slate-800";
+      const chips = data.sources.map(s =>
+        `<span class="inline-block bg-slate-200 border border-slate-400 text-slate-900 rounded-full px-2 py-0.5 mr-2 mb-2">`+
+        `${(s.section||'')} — ${String(s.source||'unknown')}`+
+        `</span>`
+      ).join("");
+      srcWrap.innerHTML = `<div class='mb-1'>Эх сурвалж:</div>${chips}`;
+      ansEl.appendChild(srcWrap);
+      messages.scrollTop = messages.scrollHeight;
+    }
+  } catch(e) {
+    typing.remove();
+    bubble(`❌ Алдаа: ${e}`, "assistant");
+  } finally {
+    btn.disabled = false; input.disabled = false;
+  }
+}
+
+form.addEventListener("submit", e => {
+  e.preventDefault();
+  const q = (input.value||"").trim();
+  if (!q) return;
+  input.value = "";
+  ask(q);
+});
+</script>
+</body>
+</html>
